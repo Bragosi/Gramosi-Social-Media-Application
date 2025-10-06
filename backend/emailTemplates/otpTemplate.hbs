@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Verification</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+            background-color: #4caf4e;
+            color: #fff;
+            border-radius: 10px 10px 0 0;
+        }
+        .otp {
+            font-size: 24px;
+            color: #333;
+            font-weight: bold;
+            text-align: center;
+            margin: 30px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{title}}</h1>
+        </div>
+        <p>Hello, {{userName}}</p>
+        <p>{{message}}</p>
+        <div class="otp">{{otp}}</div>
+        <p>If you didn't request this, please ignore this email.</p>
+        <div class="footer">
+            <p>Thank you for using Gramosi.</p>
+        </div>
+    </div>
+</body>
+</html>
