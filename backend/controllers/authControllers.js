@@ -12,9 +12,7 @@ const SendEmail = require('../utils/email');
 const loadTemplate = (templateName, replacements) => {
   // Locate the file inside /emailTemplates directory
   const templatePath = path.join(__dirname, '../emailTemplates', `${templateName}.hbs`);
-
-  console.log('📂 Loading template from:', templatePath); // Debug log
-
+ 
   // Check if the file actually exists before reading it
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Template not found: ${templatePath}`);
@@ -123,4 +121,82 @@ const signUp = CatchAsync(async (req, res, next) => {
   }
 });
 
-module.exports = signUp;
+
+// ✅ Verify account Controller
+const verifyAccount = CatchAsync(async (req, res, next)=>{
+  const {otp} = req.body
+  if(!otp){
+    return next(new AppError ("Otp is required for verification", 400))
+  }
+const user = req.user
+if(user.otp !==otp){
+  return next(new AppError("Invalid OTP", 400))
+}
+if(Date.now()> user.otpExpires){
+  return next(new AppError ("OTP has expired, Request for a new OTP", 400))
+}
+user.isVerified = true
+user.otp = undefined
+user.otpExpires = undefined
+
+await user.save({validateBeforeSave : false})
+
+createSendToken(user, 200, res, "Email has been verified")
+})
+
+// ✅ Resend OTP Controller
+const ResendOTP = CatchAsync(async (req, res, next) => {
+  const { email } = req.user;
+  if (!email) {
+    return next(new AppError("Email is required", 400));
+  }
+
+  const user = await UsersModel.findOne({ email });
+  if (!user) {
+    return next(new AppError("User not found", 404));
+  }
+
+  if (user.isVerified) {
+    return next(new AppError("This account is already verified", 400));
+  }
+
+  const otp = GenerateOtp();
+  const otpExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+  user.otp = otp;
+  user.otpExpires = otpExpires;
+
+  await user.save({ validateBeforeSave: false });
+
+  const htmlTemplate = loadTemplate('otpTemplate', {
+    title: 'OTP Verification',
+    userName: user.userName,
+    otp,
+    message: 'Your one-time password (OTP) for account verification is:',
+  });
+
+  try {
+    await SendEmail({
+      email: user.email,
+      subject: 'Resend OTP Verification',
+      html: htmlTemplate,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'A new OTP has been sent to your email.',
+    });
+  } catch (error) {
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    return next(new AppError("There was an error resending OTP. Please try again later.", 500));
+  }
+});
+
+
+module.exports = {
+  signUp, 
+  verifyAccount,
+  ResendOTP
+}
