@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const hbs = require('hbs');
 const AppError = require('../utils/AppError');
-const SendEmail = require('../utils/email');
+const sendEmail = require('../utils/email');
 
 // ✅ Load email template function
 const loadTemplate = (templateName, replacements) => {
@@ -41,7 +41,7 @@ const createSendToken = (user, statusCode, res, message) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-  };
+  }; 
 
   res.cookie('token', token, cookieOptions);
 
@@ -60,6 +60,11 @@ const createSendToken = (user, statusCode, res, message) => {
 // ✅ User Signup Controller
 const signUp = CatchAsync(async (req, res, next) => {
   const { email, password, passwordConfirm, userName } = req.body;
+
+if (!userName || !email || !password || !passwordConfirm) {
+  return next(new AppError("Please fill all fields", 400));
+}
+
 
   // Check for duplicate email or username
   const existingUser = await UsersModel.findOne({
@@ -101,7 +106,7 @@ const signUp = CatchAsync(async (req, res, next) => {
 
   try {
     // ✅ Send OTP email
-    await SendEmail({
+    await sendEmail({
       email: newUser.email,
       subject: 'OTP for Email Verification',
       html: htmlTemplate,
@@ -176,7 +181,7 @@ const ResendOTP = CatchAsync(async (req, res, next) => {
   });
 
   try {
-    await SendEmail({
+    await sendEmail({
       email: user.email,
       subject: 'Resend OTP Verification',
       html: htmlTemplate,
@@ -194,9 +199,141 @@ const ResendOTP = CatchAsync(async (req, res, next) => {
   }
 });
 
+// ✅Login Controller
+const Login = CatchAsync(async (req, res,next)=>{
+  const {identifier, password} = req.body
+  if(!identifier || !password){
+    return next(new AppError("Please Provide Email/Username and Password", 400))
+  }
+  const user = await UsersModel.findOne({
+    $or : [{email : identifier}, {userName : identifier}]
+  }).select("+password")
+
+if (!user) {
+  return next(new AppError("Incorrect Email or Password", 401));
+}
+
+if (!user.isVerified) {
+  return next(new AppError("Please verify your email before logging in.", 401));
+}
+
+  if(!user || !(await user.correctPassword(password, user.password))){
+    return next(new AppError("Incorrect Email or Password", 401))
+  }
+  createSendToken(user, 200, res, "Login Successful")
+})
+
+// ✅Logout Controller
+const Logout = CatchAsync(async (req, res, next)=>{
+  res.cookie("token", "loggedout",{
+    expires : new Date(Date.now() + 10 * 1000),
+    httpOnly : true,
+    secure : process.env.NODE_ENV === 'production'
+  })
+  res.status(200).json({
+    status: 'success',
+    message : "Logged Out Successful"
+  })
+})
+
+// ✅Forgot Password Controller
+const ForgotPassword = CatchAsync(async (req, res, next)=>{
+const {identifier} = req.body
+const user = await UsersModel.findOne({
+  $or :  [{email : identifier}, {userName : identifier}]
+})
+if(!user){
+  return next(new AppError("No User Found", 404))
+}
+const otp = GenerateOtp()
+const resetExpires = Date.now()+ 300000 
+
+user.resetPasswordOTP=otp
+user.resetPasswordOTPExpires=resetExpires
+
+await user.save({validateBeforeSave : false })
+
+const htmlTemplate = loadTemplate("otpTemplate", {
+  title: "Reset Passoword OTP",
+  userName : user.userName,
+  otp,
+  message: "Your Password Reset OTp is : "
+})
+try {
+  await sendEmail({
+    email : user.email,
+    subject : "Password reset otp (Valid for 5min)",
+    html : htmlTemplate
+  })
+  res.status(200).json({
+    status : "success",
+    message : "Password reset otp is sent to your email"
+  })
+} catch (error) {
+  user.resetPasswordOTP=undefined,
+  user.resetPasswordOTPExpires=undefined
+  await user.save({validateBeforeSave : false})
+  return next(
+    new AppError("There was an error sending the email. Try again Later!", 500)
+  )
+}
+})
+
+// ✅Reset Password Controller
+const ResetPassword = CatchAsync(async (req, res,next)=>{
+  const {identifier, otp, password, passwordConfirm}= req.body
+  const user = await UsersModel.findOne({
+    $or :
+    [{email : identifier}, {userName : identifier}],
+    resetPasswordOTP : otp,
+    resetPasswordOTPExpires : {$gt: Date.now()}
+  })
+  if (!user){
+    return next(new AppError("No User Found", 400))
+  }
+  user.password=password
+  user.passwordConfirm=passwordConfirm
+  user.resetPasswordOTP=undefined 
+  user.resetPasswordOTPExpires=undefined
+  await user.save()
+  createSendToken(user, 200, res, 'Password Reset Successful')
+})
+
+// ✅Change Password Controller
+const ChangePassword = CatchAsync(async (req, res, next) => {
+  const { currentPassword, newPassword, newPasswordConfirm } = req.body;
+  const { email } = req.user;
+
+  const user = await UsersModel.findOne({ email }).select('+password');
+
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  const isPasswordCorrect = await user.correctPassword(currentPassword, user.password);
+  if (!isPasswordCorrect) {
+    return next(new AppError('Incorrect current password', 400));
+  }
+
+  if (newPassword !== newPasswordConfirm) {
+    return next(new AppError("New password and confirm password don't match", 400));
+  }
+
+  user.password = newPassword;
+  user.passwordConfirm = newPasswordConfirm;
+  await user.save();
+
+  createSendToken(user, 200, res, 'Password has been successfully changed');
+});
+
 
 module.exports = {
   signUp, 
   verifyAccount,
-  ResendOTP
+  ResendOTP,
+  Login,
+  Logout,
+  ForgotPassword,
+  ResetPassword,
+  ChangePassword
 }
