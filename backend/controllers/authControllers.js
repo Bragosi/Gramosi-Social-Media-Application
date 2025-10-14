@@ -64,8 +64,6 @@ const signUp = CatchAsync(async (req, res, next) => {
 if (!userName || !email || !password || !passwordConfirm) {
   return next(new AppError("Please fill all fields", 400));
 }
-
-
   // Check for duplicate email or username
   const existingUser = await UsersModel.findOne({
     $or: [{ email }, { userName }],
@@ -81,7 +79,6 @@ if (!userName || !email || !password || !passwordConfirm) {
       )
     );
   }
-
   // Generate OTP and expiry
   const otp = GenerateOtp();
   const otpExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
@@ -95,7 +92,6 @@ if (!userName || !email || !password || !passwordConfirm) {
     otp,
     otpExpires,
   });
-
   // ✅ Load and compile OTP email template
   const htmlTemplate = loadTemplate('otpTemplate', {
     title: 'OTP Verification',
@@ -103,7 +99,6 @@ if (!userName || !email || !password || !passwordConfirm) {
     otp,
     message: 'Your one-time password (OTP) for account verification is:',
   });
-
   try {
     // ✅ Send OTP email
     await sendEmail({
@@ -111,7 +106,6 @@ if (!userName || !email || !password || !passwordConfirm) {
       subject: 'OTP for Email Verification',
       html: htmlTemplate,
     });
-
     // ✅ Send success response
     createSendToken(
       newUser,
@@ -125,7 +119,6 @@ if (!userName || !email || !password || !passwordConfirm) {
     return next(new AppError('Error sending OTP. Please try again later.', 500));
   }
 });
-
 
 // ✅ Verify account Controller
 const verifyAccount = CatchAsync(async (req, res, next)=>{
@@ -212,11 +205,9 @@ const Login = CatchAsync(async (req, res,next)=>{
 if (!user) {
   return next(new AppError("Incorrect Email or Password", 401));
 }
-
 if (!user.isVerified) {
   return next(new AppError("Please verify your email before logging in.", 401));
 }
-
   if(!user || !(await user.correctPassword(password, user.password))){
     return next(new AppError("Incorrect Email or Password", 401))
   }
@@ -326,7 +317,7 @@ const ChangePassword = CatchAsync(async (req, res, next) => {
   createSendToken(user, 200, res, 'Password has been successfully changed');
 });
 
-
+// Export Controllers
 module.exports = {
   signUp, 
   verifyAccount,
