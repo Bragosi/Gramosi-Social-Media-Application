@@ -7,6 +7,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const path = require('path');
 const AppError = require('./utils/AppError');
 const userRouter = require('./routes/UserRoutes');
+const postRouter = require('./routes/PostRoutes')
 const globalErrorHandler = require('./controllers/errorController'); 
 
 const app = express();
@@ -34,9 +35,7 @@ app.use(mongoSanitize());
 
 // Routes
 app.use('/api/v1/users', userRouter);
-
-// TODO: Implement post routes
-// app.use('/api/v1/posts', postRouter);
+app.use('/api/v1/posts', postRouter);
 
 // 404 handler
 // 404 handler (must come after all routes)
